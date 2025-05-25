@@ -5,7 +5,7 @@ MEL Software (Minecraft Experience Launcher Software) is a tool that can play Mi
 # Compatibility
 Compatibility for:
 - Windows
-- Linux (More types can be added for Distros)
+- Linux GNOME (Linux with Terminal: gnome-terminal)
 
 # Usage
 - Phone: Need to enable "USB Debugging" in settings.
