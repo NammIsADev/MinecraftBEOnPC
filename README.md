@@ -13,6 +13,6 @@ Compatibility for:
 - Linux (GNOME): Place "MEL-for-Linux-GNOME" folder in /home/$user_folder$/Downloads/MEL-Software/Linux/GNOME and run "Launcher (.desktop)"
 
 # Downloads
-- Github (here):
+- Github (here): https://github.com/HPinES-Tech/MEL-Software/releases/tag/Release
 - Google Drive: Not uploaded yet
 - Mediafire: Not uploaded yet
