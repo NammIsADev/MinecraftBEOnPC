@@ -15,4 +15,4 @@ Compatibility for:
 # Downloads
 - Github (here): https://github.com/HPinES-Tech/MEL-Software/releases/tag/Release
 - Google Drive: https://drive.google.com/drive/folders/1540eysuTqnNtTqn7D3G1dtAwrOY2tkKs?usp=drive_link
-- Mediafire: Not uploaded yet
+- Mediafire: https://www.mediafire.com/folder/qenlen72byyrl/MEL-Software
