@@ -3,7 +3,6 @@ MBOP (Minecraft Bedrock on PC) is a tool that can play Minecraft PE on your comp
 
 > [!WARNING]
 > For educational use only, you must use a **legit Minecraft APK or APPX** (even on Linux and Windows).
-> (Applied for Windows too)
 
 # Compatibility
 Compatibility for:
