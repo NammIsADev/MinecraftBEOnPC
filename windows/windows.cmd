@@ -1,115 +1,130 @@
 @echo off
+cd /d "%~dp0"
 title MBOP Setup - Minecraft Bedrock on PC
-color 0a
 setlocal enabledelayedexpansion
+set "LOGFILE=setup_log.txt"
+echo [START] %date% %time% > "%LOGFILE%"
 
-:: Check Windows version
+:: Check admin
+net session >nul 2>&1 || (
+    echo [^^!] Admin rights required. Relaunching as admin... >> "%LOGFILE%"
+    echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadmin.vbs"
+    echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadmin.vbs"
+    "%temp%\getadmin.vbs"
+    del "%temp%\getadmin.vbs"
+    exit /b
+)
+
+:menu
+:: GUI using PowerShell MessageBox
+for /f %%i in ('powershell -NoProfile -Command ^
+  "Add-Type -AssemblyName System.Windows.Forms; $res = [System.Windows.Forms.MessageBox]::Show(\"Install or Upgrade Minecraft? Choose No if you want to uninstall Minecraft.\", \"MBOP Setup\", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question); if ($res -eq 'Yes') { 'install' } else { 'uninstall' }"') do (
+    set "USERCHOICE=%%i"
+)
+
+if /i "%USERCHOICE%"=="install" goto install
+if /i "%USERCHOICE%"=="uninstall" goto uninstall
+exit /b
+
+:install
+>>"%LOGFILE%" echo [START INSTALL] %date% %time%
 ver | findstr /i "10." >nul || (
-    echo [!] This script only works on Windows 10 or later!
+    echo [^^!] Unsupported Windows version! >> "%LOGFILE%"
+    echo [^^!] This script only works on Windows 10 or later!
     pause
     exit /b
 )
 
-:: Check for Administrator privilege
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [!] Please run this script as Administrator.
-    pause
-    exit /b
-)
-
-:: Create folders if not exist
 if not exist runtime mkdir runtime
 if not exist dll mkdir dll
 
-:: Try to find App Installer in WinSxS
-echo [+] Checking for App Installer...
-set "installer_path="
-for /R "%SystemRoot%\WinSxS" %%f in (*DesktopAppInstaller*.appx *DesktopAppInstaller*.msixbundle) do (
-    set "installer_path=%%f"
-    goto :found_installer
-)
+echo [^^!] Starting installation...
+echo [*] This command window will be a verbose log for what is happening with your computer.
 
-:found_installer
-if defined installer_path (
-    echo [+] Found App Installer in WinSxS:
-    echo     !installer_path!
-    powershell -Command "Add-AppxPackage -Path '!installer_path!'" 
-    if %errorlevel% neq 0 (
-        echo [!] Failed to install App Installer from WinSxS.
-        pause
-        exit /b
-    )
-) else (
-    echo [!] App Installer not found!
-    echo.
-    echo [!] You must download and install App Installer manually.
-    echo     1. Visit: https://store.rg-adguard.net/
-    echo     2. Paste Product ID: 9NBLGGH4NNS1
-    echo     3. Download and place the all the lib and App Installer (.appx or .msixbundle) into the ^"runtime^" folder.
-    echo     If the installer encounters an error, please end any related tasks and run this script again.
-    pause
-    exit /b
-)
+:: DLL setup
+set "DLL_TARGET=%SystemRoot%\System32\Windows.ApplicationModel.Store.dll"
+set "DLL_SOURCE=%~dp0dll\Windows.ApplicationModel.Store.dll"
 
-:: Install all runtime packages
-echo [*] Installing dependencies from ^"runtime^" folder...
-for %%I in ("runtime\*.appx" "runtime\*.msixbundle") do (
-    echo [*] Installing: %%~nxI
-    powershell -command "Add-AppxPackage -Path '%%~fI'" || echo [!] Failed to install: %%~nxI
-)
-
-:: Replace DLL for Minecraft runtime
 echo.
 echo [*] Replacing Windows.ApplicationModel.Store.dll...
-set DLL_TARGET=%SystemRoot%\System32\Windows.ApplicationModel.Store.dll
-set DLL_SOURCE=%~dp0dll\Windows.ApplicationModel.Store.dll
 
-if exist "!DLL_SOURCE!" (
-    takeown /f "!DLL_TARGET!" >nul
-    icacls "!DLL_TARGET!" /grant administrators:F >nul
-    copy /y "!DLL_SOURCE!" "!DLL_TARGET!" >nul && (
-        echo [+] DLL replaced successfully.
-    ) || (
-        echo [!] Failed to replace the DLL!
+if not exist "!DLL_SOURCE!" (
+    echo [^^!] Missing DLL. Downloading from GitHub... >> "%LOGFILE%"
+    powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/NammIsADev/MinecraftBEOnPC/main/windows/dll/Windows.ApplicationModel.Store.dll' -OutFile '!DLL_SOURCE!'" >> "%LOGFILE%" 2>&1
+    if not exist "!DLL_SOURCE!" (
+        echo [^^!] DLL download failed! >> "%LOGFILE%"
+        echo [^^!] DLL download failed^^! Is it your PC are connected to the internet?
+        goto skip_dll
     )
-) else (
-    echo [!] Missing DLL file in ^"dll^" folder!
 )
 
-:: Install Minecraft package from current folder
-echo.
-echo [+] Looking for Minecraft .appx / .msix / .msixbundle in current folder...
-set pkg_file=
-for %%f in (*.appx *.msix *.msixbundle) do (
-    set pkg_file=%%f
-    goto :found_pkg
+takeown /f "!DLL_TARGET!" >nul
+icacls "!DLL_TARGET!" /grant administrators:F >nul
+copy /y "!DLL_SOURCE!" "!DLL_TARGET!" >nul && (
+    echo [+] DLL replaced successfully. >> "%LOGFILE%"
+) || (
+    echo [^^!] DLL copy failed. >> "%LOGFILE%"
+    echo [^^!] DLL copy failed. Are you having Bitlocker or Antivirus? Turn it off^^!
 )
 
-:found_pkg
+:skip_dll
+
+:: Locate Minecraft main package
+set "pkg_file="
+for %%f in (runtime\*.appx runtime\*.msix runtime\*.msixbundle) do (
+    if not defined pkg_file set "pkg_file=%%~f"
+)
+
 if not defined pkg_file (
-    echo [!] No .appx / .msix / .msixbundle found in this folder.
-    echo.
-    echo     Please get Minecraft Bedrock and all lib package from:
-    echo     https://store.rg-adguard.net/
-    echo     Paste this Product ID: 9NBLGGH2JHXJ
-    echo.
-    echo Then put the downloaded file here and re-run this script.
+    echo [^^!] Failed to install Minecraft^^! Please check "setup_log.txt"^^! 
+    echo [*] Writing log please wait... This could take some second...
+    echo [^^!] Minecraft package not found. >> "%LOGFILE%"
+    ping -n 1 localhost >nul
+    echo [^!] ProductID to download Appx ^(remember to download lib like VCLib too^) 1>>"setup_log.txt"
+    ping -n 1 localhost >nul
+    echo       9NBLGGH2JHXJ >> "%LOGFILE%"
+    ping -n 1 localhost >nul
+    echo [^^!] Download it from >> "%LOGFILE%" 
+    ping -n 1 localhost >nul
+    echo       store.rg-adguard.net >> "%LOGFILE%"
+    ping -n 1 localhost >nul
+    echo [^^!] Put them in "runtime" folder. Then re-run this script^^! >> "%LOGFILE%"
+    ping -n 1 localhost >nul
+    echo [END INSTALL] %date% %time% INSTALLATION HALTED BECAUSE ERROR >>"%LOGFILE%"
     pause
     exit /b
+)
+
+:: Install dependencies
+for %%f in (runtime\Microsoft.VCLibs* runtime\Microsoft.NET.Native*) do (
+    echo [*] Installing dependency: %%~nxf >> "%LOGFILE%"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Try { Add-AppxPackage -Path '%%~f' -ErrorAction Stop } Catch { Exit 1 }"
+    if !errorlevel! neq 0 (
+        echo [^^!] Failed: %%~nxf >> "%LOGFILE%"
+    ) else (
+        echo [+] Installed: %%~nxf >> "%LOGFILE%"
+    )
 )
 
 :: Install Minecraft
-echo [+] Installing: !pkg_file!
-powershell -command "Add-AppxPackage -Path '.\!pkg_file!'" 
-if %errorlevel% neq 0 (
-    echo [!] Minecraft installation failed.
+echo [*] Installing: !pkg_file! >> "%LOGFILE%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Try { Add-AppxPackage -Path '!pkg_file!' -ErrorAction Stop } Catch { Exit 1 }"
+if !errorlevel! neq 0 (
+    echo [^^!] Minecraft installation failed^^! >> "%LOGFILE%"
     pause
     exit /b
 )
 
-echo.
-echo [✔] Minecraft Bedrock installed successfully!
-echo Enjoy Minecraft Bedrock!
+echo [:)] Minecraft Bedrock installed successfully! >> "%LOGFILE%"
+echo [:)] Enjoy Minecraft Bedrock! Installed successfully^^! 
+>>"%LOGFILE%" echo [END INSTALL] %date% %time%
+pause
+exit /b
+
+:uninstall
+>>"%LOGFILE%" echo [START UNINSTALL] %date% %time%
+powershell -Command "Get-AppxPackage -Name Microsoft.MinecraftUWP | Remove-AppxPackage"
+echo Minecraft has been removed.
+>>"%LOGFILE%" echo [END UNINSTALL] %date% %time%
 pause
 exit /b
